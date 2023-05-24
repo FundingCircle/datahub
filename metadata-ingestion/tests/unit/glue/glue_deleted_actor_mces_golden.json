@@ -492,8 +492,8 @@
     }
 },
 {
-    "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)",
+    "entityType": "container",
+    "entityUrn": "urn:li:container:0b9f1f731ecf6743be6207fec3dc9cba",
     "changeType": "UPSERT",
     "aspectName": "status",
     "aspect": {
@@ -507,8 +507,8 @@
     }
 },
 {
-    "entityType": "container",
-    "entityUrn": "urn:li:container:0b9f1f731ecf6743be6207fec3dc9cba",
+    "entityType": "dataset",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)",
     "changeType": "UPSERT",
     "aspectName": "status",
     "aspect": {
