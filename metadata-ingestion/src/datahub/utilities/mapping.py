@@ -274,8 +274,8 @@ class OperationProcessor:
         if not any(
             isinstance(raw_props_value, t) for t in Constants.OPERAND_DATATYPE_SUPPORTED
         ) or (
-            not isinstance(raw_props_value, bool) and
-            not isinstance(raw_props_value, type(match_clause))
+            not isinstance(raw_props_value, bool)
+            and not isinstance(raw_props_value, type(match_clause))
         ):
             return None
         elif isinstance(raw_props_value, str):
