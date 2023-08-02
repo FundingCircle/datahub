@@ -1567,7 +1567,9 @@ class TableauSource(StatefulIngestionSourceBase):
             )
             return None
 
-        query = datasource.get(tableau_constant.QUERY)
+        # Clean query as for some reason some queries are read in with duplicated </> characters
+        query = clean_query(datasource.get(tableau_constant.QUERY))
+        
         if query is None:
             logger.debug(
                 f"raw sql query is not available for datasource {datasource_urn}"
