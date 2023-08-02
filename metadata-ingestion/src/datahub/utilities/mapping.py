@@ -273,7 +273,7 @@ class OperationProcessor:
         # function to check if a match clause is satisfied to a value.
         if not any(
             isinstance(raw_props_value, t) for t in Constants.OPERAND_DATATYPE_SUPPORTED
-        ) or ( 
+        ) or (
             not isinstance(raw_props_value, bool)
             and not isinstance(raw_props_value, type(match_clause))
         ):
