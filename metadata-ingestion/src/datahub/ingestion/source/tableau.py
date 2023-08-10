@@ -332,6 +332,11 @@ class TableauConfig(
         description="Platform prefix for mapping upstream lineage URNs.",
     )
 
+    ignore_upstream_lineage_platforms: Optional[str] = Field(
+        default="",
+        description="Comma separated list of platforms to not ingest upstream lineage for",
+    )
+
     # pre = True because we want to take some decision before pydantic initialize the configuration to default values
     @root_validator(pre=True)
     def projects_backward_compatibility(cls, values: Dict) -> Dict:
@@ -402,6 +407,7 @@ class TableauSource(StatefulIngestionSourceBase):
     tableau_project_registry: Dict[str, TableauProject] = {}
     workbook_project_map: Dict[str, str] = {}
     datasource_project_map: Dict[str, str] = {}
+    ignore_upstream_lineage_platforms: List[str] = []
 
     def __hash__(self):
         return id(self)
@@ -437,6 +443,11 @@ class TableauSource(StatefulIngestionSourceBase):
         # This list keeps track of datasource being actively used by workbooks so that we only retrieve those
         # when emitting custom SQL data sources.
         self.custom_sql_ids_being_used: List[str] = []
+
+        if self.config.ignore_upstream_lineage_platforms:
+            self.ignore_upstream_lineage_platforms = (
+                self.config.ignore_upstream_lineage_platforms.split(",")
+            )
 
         self._authenticate()
 
@@ -917,6 +928,15 @@ class TableauSource(StatefulIngestionSourceBase):
         # Same table urn can be used when setting fine grained lineage,
         table_id_to_urn: Dict[str, str] = {}
         for table in tables:
+            if (
+                table.get(tableau_constant.CONNECTION_TYPE, "")
+                in self.ignore_upstream_lineage_platforms
+            ):
+                logger.debug(
+                    f"Skipping upstream table {table[tableau_constant.ID]}, ignoring upstream platform {table.get(tableau_constant.CONNECTION_TYPE, '')}"
+                )
+                continue
+
             # skip upstream tables when there is no column info when retrieving datasource
             # Lineage and Schema details for these will be taken care in self.emit_custom_sql_datasources()
             if not is_custom_sql and not table.get(tableau_constant.COLUMNS):
@@ -966,7 +986,7 @@ class TableauSource(StatefulIngestionSourceBase):
                 table_name,
                 self.config.platform_instance_map,
                 self.config.lineage_overrides,
-                self.config.lineage_platform_instance
+                self.config.lineage_platform_instance,
             )
             table_id_to_urn[table[tableau_constant.ID]] = table_urn
 
@@ -1379,8 +1399,8 @@ class TableauSource(StatefulIngestionSourceBase):
             query = clean_query(csql.get(tableau_constant.QUERY))
 
             # suppress sqlfluff logging because it is very spammy and lags the Airflow UI
-            logging.getLogger('sqlfluff.parser').setLevel(logging.WARNING)
-            logging.getLogger('sqlfluff.linter').setLevel(logging.WARNING)
+            logging.getLogger("sqlfluff.parser").setLevel(logging.WARNING)
+            logging.getLogger("sqlfluff.linter").setLevel(logging.WARNING)
 
             parser = LineageRunner(query)
             try:
@@ -1397,7 +1417,7 @@ class TableauSource(StatefulIngestionSourceBase):
                             full_name=split_table[1],
                             platform_instance_map=self.config.platform_instance_map,
                             lineage_overrides=self.config.lineage_overrides,
-                            lineage_platform_instance=self.config.lineage_platform_instance
+                            lineage_platform_instance=self.config.lineage_platform_instance,
                         )
                         upstream_tables.append(
                             UpstreamClass(
