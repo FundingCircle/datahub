@@ -327,11 +327,6 @@ class TableauConfig(
         description="[Experimental] Whether to extract lineage from unsupported custom sql queries using SQL parsing",
     )
 
-    lineage_platform_instance: str = Field(
-        default="uk",
-        description="Platform prefix for mapping upstream lineage URNs.",
-    )
-
     ignore_upstream_lineage_platforms: Optional[str] = Field(
         default="",
         description="Comma separated list of platforms to not ingest upstream lineage for",
@@ -987,7 +982,6 @@ class TableauSource(StatefulIngestionSourceBase):
                 table_name,
                 self.config.platform_instance_map,
                 self.config.lineage_overrides,
-                self.config.lineage_platform_instance,
             )
             table_id_to_urn[table[tableau_constant.ID]] = table_urn
 
@@ -1418,7 +1412,6 @@ class TableauSource(StatefulIngestionSourceBase):
                             full_name=split_table[1],
                             platform_instance_map=self.config.platform_instance_map,
                             lineage_overrides=self.config.lineage_overrides,
-                            lineage_platform_instance=self.config.lineage_platform_instance,
                         )
                         upstream_tables.append(
                             UpstreamClass(
