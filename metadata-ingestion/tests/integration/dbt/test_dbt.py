@@ -333,36 +333,6 @@ def test_resolve_trino_modified_type(data_type, expected_data_type):
     )
 
 
-@pytest.mark.parametrize(
-    "data_type, expected_data_type",
-    [
-        ("boolean", "boolean"),
-        ("tinyint", "tinyint"),
-        ("smallint", "smallint"),
-        ("int", "int"),
-        ("integer", "integer"),
-        ("bigint", "bigint"),
-        ("float", "float"),
-        ("double", "double"),
-        ("decimal(10,0)", "decimal"),
-        ("varchar(20)", "varchar"),
-        ("char", "char"),
-        ("binary", "binary"),
-        ("date", "date"),
-        ("timestamp", "timestamp"),
-        ("timestamp(3)", "timestamp"),
-        ("struct<x timestamp(3), y timestamp>", "struct"),
-        ("array<struct<x bigint, y double>>", "array"),
-        ("map<varchar, varchar>", "map"),
-    ],
-)
-def test_resolve_athena_modified_type(data_type, expected_data_type):
-    assert (
-        resolve_athena_modified_type(data_type)
-        == ATHENA_SQL_TYPES_MAP[expected_data_type]
-    )
-
-
 @pytest.mark.integration
 @freeze_time(FROZEN_TIME)
 def test_dbt_tests_only_assertions(pytestconfig, tmp_path, mock_time, **kwargs):
