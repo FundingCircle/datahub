@@ -501,11 +501,10 @@ class TableauSource(StatefulIngestionSourceBase):
         # when emitting custom SQL data sources.
         self.custom_sql_ids_being_used: List[str] = []
 
-        if self.config.ignore_upstream_lineage_platforms:
-            self.ignore_upstream_lineage_platforms = [
-                x.strip()
-                for x in (self.config.ignore_upstream_lineage_platforms.split(","))
-            ]
+        self.ignore_upstream_lineage_platforms = [
+            x.strip()
+            for x in (self.config.ignore_upstream_lineage_platforms.split(","))
+        ]
 
         self._authenticate()
 
