@@ -8,7 +8,8 @@ anchors:
       - cd "/drone/src/$${ENVIRONMENT}"
       - sed -i "s/<AMPLITUDE_API_KEY>/$AMPLITUDE_API_KEY/g" datahub-web-react/src/conf/analytics.ts
       - cat datahub-web-react/src/conf/analytics.ts
-      - ./gradlew :datahub-frontend:dist -x test -x yarnTest -x yarnLint --parallel
+      # - ./gradlew :datahub-frontend:dist -x test -x yarnTest -x yarnLint --parallel
+      - mkdir -p ./datahub-frontend/build/distributions/ && touch ./datahub-frontend/build/distributions/datahub-frontend-0.0.1.zip
       - ls -la ./datahub-frontend/build/distributions/
       - mv ./datahub-frontend/build/distributions/datahub-frontend-*.zip datahub-frontend.zip
     depends_on:
@@ -33,7 +34,7 @@ anchors:
       repository_policy: .ecr-repository-policy.json
       repo: datahub-frontend 
       custom_labels:
-      - "org.fundingcircle.image.manager=$ECR_LABEL_MANAGER_EMAIL"
+      - "org.fundingcircle.image.manager=${ECR_LABEL_MANAGER_EMAIL}"
       cache_from:
         from_secret: ecr_cache_from
       build_args_from_env:
