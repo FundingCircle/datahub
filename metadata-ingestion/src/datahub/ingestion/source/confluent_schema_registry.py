@@ -28,6 +28,7 @@ from datahub.metadata.schema_classes import DatasetPropertiesClass
 from datahub.utilities.mapping import Constants, OperationProcessor
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -246,6 +247,7 @@ class ConfluentSchemaRegistry(KafkaSchemaRegistryBase):
         topic_subject: Optional[str] = self._get_subject_for_topic(
             topic=topic, is_key_schema=is_key_schema
         )
+        logger.debug(f"topic: {topic}, topic_subject: {topic_subject}")
         if topic_subject is not None:
             logger.debug(
                 f"The {schema_type_str} schema subject:'{topic_subject}' is found for topic:'{topic}'."

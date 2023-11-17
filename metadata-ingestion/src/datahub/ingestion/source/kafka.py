@@ -62,6 +62,7 @@ from datahub.metadata.schema_classes import (
 from datahub.utilities.registries.domain_registry import DomainRegistry
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class KafkaTopicConfigKeys(str, Enum):
@@ -118,7 +119,7 @@ class KafkaSourceConfig(StatefulIngestionConfigBase, DatasetSourceConfigMixin):
         description="Disables warnings reported for non-AVRO/Protobuf value or key schemas if set.",
     )
     disable_topic_record_naming_strategy: bool = pydantic.Field(
-        default=False,
+        default=False, # We should enable this by default
         description="Disables the utilization of the TopicRecordNameStrategy for Schema Registry subjects. For more information, visit: https://docs.confluent.io/platform/current/schema-registry/serdes-develop/index.html#handling-differences-between-preregistered-and-client-derived-schemas:~:text=io.confluent.kafka.serializers.subject.TopicRecordNameStrategy",
     )
 
@@ -225,6 +226,9 @@ class KafkaSource(StatefulIngestionSourceBase):
         topics = self.consumer.list_topics(
             timeout=self.source_config.connection.client_timeout_seconds
         ).topics
+
+        logging.debug(f"found {len(topics)} topics")
+        logging.debug(str(topics))
         extra_topic_details = self.fetch_extra_topic_details(topics.keys())
 
         for t, t_detail in topics.items():
