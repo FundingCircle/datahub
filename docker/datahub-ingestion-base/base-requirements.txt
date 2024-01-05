@@ -253,7 +253,7 @@ pyasn1-modules==0.3.0
 pyathena==2.4.1
 pycountry==22.3.5
 pycparser==2.21
-pycryptodome==3.18.0
+pycryptodome==3.19.1
 pycryptodomex==3.18.0
 pydantic==1.10.8
 pydash==7.0.3
