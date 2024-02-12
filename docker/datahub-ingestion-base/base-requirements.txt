@@ -96,7 +96,7 @@ et-xmlfile==1.1.0
 exceptiongroup==1.1.1
 executing==1.2.0
 expandvars==0.9.0
-fastapi==0.95.2
+fastapi==0.109.1
 fastavro==1.7.4
 fastjsonschema==2.17.1
 feast==0.29.0
