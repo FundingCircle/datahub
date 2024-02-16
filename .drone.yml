@@ -77,7 +77,7 @@ steps:
 
   - name: docker_frontend_staging
     <<: *docker_build_config
-    <<: *when_internal_branch
+    # <<: *when_internal_branch
     settings:
       context: /drone/src/staging/
       dockerfile: /drone/src/staging/docker/datahub-frontend/Dockerfile
