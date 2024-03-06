@@ -990,11 +990,21 @@ class DBTSourceBase(StatefulIngestionSourceBase):
                         preprocessed_sql, schema_resolver=schema_resolver
                     )
 
+            if sql_result:
+                if not sql_result.column_lineage or len(sql_result.column_lineage) == 0:
+                    logger.info(f"Returned sql result but no column lineage for {node.dbt_name}")
+            else:
+                logger.info(f"No sql result returned for {node.dbt_name}")
+
             # Save the column lineage.
             if self.config.include_column_lineage and sql_result:
                 # We only save the debug info here. We're report errors based on it later, after
                 # applying the configured node filters.
                 node.cll_debug_info = sql_result.debug_info
+                if not sql_result.column_lineage or len(sql_result.column_lineage) == 0:
+                    logger.info(f"No column lineage returned for {node.dbt_name}")
+                else:
+                    logger.info(f"Column lineage returned for {len(sql_result.column_lineage)} columns in {node.dbt_name}")
 
                 if sql_result.column_lineage:
                     node.upstream_cll = [
