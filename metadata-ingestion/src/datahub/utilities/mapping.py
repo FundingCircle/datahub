@@ -381,7 +381,9 @@ class OperationProcessor:
                 if term.strip()
             ]
         elif operation_type == Constants.ADD_DOMAIN_OPERATION:
-            return mce_builder.make_domain_urn(operation_config[Constants.DOMAIN])
+            domain = operation_config[Constants.DOMAIN]
+            domain = _insert_match_value(domain, _get_best_match(match, "domain"))
+            return mce_builder.make_domain_urn(domain)
         return None
 
     def sanitize_owner_ids(self, owner_id: str) -> str:

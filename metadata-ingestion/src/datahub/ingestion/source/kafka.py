@@ -421,6 +421,10 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
                         for tag_association in meta_tags_aspect.tags
                     ]
 
+                meta_domain_aspect = meta_aspects.get(Constants.ADD_DOMAIN_OPERATION)
+                if meta_domain_aspect:
+                    dataset_snapshot.aspects.append(meta_domain_aspect)
+
             if all_tags:
                 dataset_snapshot.aspects.append(
                     mce_builder.make_global_tag_aspect_with_tag_list(all_tags)
