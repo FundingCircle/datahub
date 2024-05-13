@@ -297,7 +297,7 @@ class OperationProcessor:
         if Constants.ADD_DOMAIN_OPERATION in operation_map:
             domain_aspect = DomainsClass(domains=[operation_map[Constants.ADD_DOMAIN_OPERATION]])
             aspect_map[Constants.ADD_DOMAIN_OPERATION] = domain_aspect
-
+            print(aspect_map)
         return aspect_map
 
     def get_operation_value(
@@ -383,6 +383,7 @@ class OperationProcessor:
         elif operation_type == Constants.ADD_DOMAIN_OPERATION:
             domain = operation_config[Constants.DOMAIN]
             domain = _insert_match_value(domain, _get_best_match(match, "domain"))
+            print(mce_builder.make_domain_urn(domain))
             return mce_builder.make_domain_urn(domain)
         return None
 
