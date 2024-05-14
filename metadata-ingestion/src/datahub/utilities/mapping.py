@@ -295,7 +295,7 @@ class OperationProcessor:
                     f"Error while constructing aspect for documentation link and description : {e}"
                 )
         if Constants.ADD_DOMAIN_OPERATION in operation_map:
-            domain_aspect = DomainsClass(domains=[operation_map[Constants.ADD_DOMAIN_OPERATION]])
+            domain_aspect = DomainsClass(domains=[list(operation_map[Constants.ADD_DOMAIN_OPERATION])])
             aspect_map[Constants.ADD_DOMAIN_OPERATION] = domain_aspect
         return aspect_map
 
