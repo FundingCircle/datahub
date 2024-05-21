@@ -1246,6 +1246,14 @@ class DBTSourceBase(StatefulIngestionSourceBase):
                 aspect=self._make_data_platform_instance_aspect(),
             ).as_workunit()
 
+            # Domain aspects
+            meta_domain_aspect = meta_aspects.get(Constants.ADD_DOMAIN_OPERATION)
+            if meta_domain_aspect:
+                yield MetadataChangeProposalWrapper(
+                    entityUrn=node_datahub_urn,
+                    aspect=meta_domain_aspect,
+                ).as_workunit()
+
             # add browsePathsV2 aspect
             browse_paths_v2_path = []
             if mce_platform_instance:
