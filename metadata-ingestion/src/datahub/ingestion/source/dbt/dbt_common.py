@@ -1265,7 +1265,8 @@ class DBTSourceBase(StatefulIngestionSourceBase):
                         id=platform_instance_urn, urn=platform_instance_urn
                     )
                 )
-            browse_paths_v2_path.append(BrowsePathEntryClass(id=node.schema))
+            if node.schema:
+                browse_paths_v2_path.append(BrowsePathEntryClass(id=node.schema))
             aspects.append(BrowsePathsV2Class(path=browse_paths_v2_path))
 
             if len(aspects) == 0:
@@ -1596,7 +1597,7 @@ class DBTSourceBase(StatefulIngestionSourceBase):
                 description=description,
                 default_nullable=True,
                 custom_tags=column.tags,
-                **meta_mapping_args,
+                **meta_mapping_args,  # type: ignore
             )
             assert schema_fields
             canonical_schema.extend(schema_fields)
