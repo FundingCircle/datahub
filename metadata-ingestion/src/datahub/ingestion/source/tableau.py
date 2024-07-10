@@ -138,14 +138,14 @@ from datahub.metadata.schema_classes import (
     DashboardUsageStatisticsClass,
     DataPlatformInstanceClass,
     DatasetPropertiesClass,
+    EditableSchemaMetadataClass,
     EmbedClass,
     OwnerClass,
     OwnershipClass,
     OwnershipTypeClass,
+    SchemaMetadataClass,
     SubTypesClass,
     ViewPropertiesClass,
-    SchemaMetadataClass,
-    EditableSchemaMetadataClass
 )
 from datahub.sql_parsing.sql_parsing_result_utils import (
     transform_parsing_result_to_in_tables_schemas,
@@ -2253,10 +2253,16 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
         )
         if schema_metadata is not None:
             # Check if table already has schema metadata
-            current_schema_aspect = self.ctx.graph.get_aspect(entity_urn=database_table.urn, aspect_type=SchemaMetadataClass)
-            current_editable_schema_aspect = self.ctx.graph.get_aspect(entity_urn=database_table.urn, aspect_type=EditableSchemaMetadataClass)
+            current_schema_aspect = self.ctx.graph.get_aspect(
+                entity_urn=database_table.urn, aspect_type=SchemaMetadataClass
+            )
+            current_editable_schema_aspect = self.ctx.graph.get_aspect(
+                entity_urn=database_table.urn, aspect_type=EditableSchemaMetadataClass
+            )
             if current_schema_aspect or current_editable_schema_aspect:
-                logger.debug(f"Table {database_table.urn} already has schema metadata, skipping")
+                logger.debug(
+                    f"Table {database_table.urn} already has schema metadata, skipping"
+                )
             else:
                 dataset_snapshot.aspects.append(schema_metadata)
 
