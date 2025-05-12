@@ -285,6 +285,9 @@ def extract_dbt_entities(
 
 
 def _parse_dbt_timestamp(timestamp: str) -> datetime:
+    # handle microseconds not being present
+    if "." not in timestamp:
+        timestamp = timestamp.replace("Z", ".000000Z")
     return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
         tzinfo=timezone.utc
     )
