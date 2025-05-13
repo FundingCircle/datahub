@@ -64,7 +64,9 @@ from datahub.metadata.com.linkedin.pegasus2avro.common import Status
 from datahub.metadata.com.linkedin.pegasus2avro.metadata.snapshot import DatasetSnapshot
 from datahub.metadata.com.linkedin.pegasus2avro.mxe import MetadataChangeEvent
 from datahub.metadata.schema_classes import (
+    BrowsePathEntryClass,
     BrowsePathsClass,
+    BrowsePathsV2Class,
     DataPlatformInstanceClass,
     DatasetPropertiesClass,
     KafkaSchemaClass,
@@ -260,7 +262,6 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
             self.source_config.tag_prefix,
             OwnershipSourceTypeClass.SERVICE,
             self.source_config.strip_user_ids_from_email,
-            match_nested_props=True,
         )
 
     def init_kafka_admin_client(self) -> None:
@@ -349,12 +350,24 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
         if schema_metadata is not None:
             dataset_snapshot.aspects.append(schema_metadata)
 
-        # 3. Attach browsePaths aspect
+        # 3. Attach browsePaths and browsePathsV2 aspects
         browse_path_str = f"/{self.source_config.env.lower()}/{self.platform}"
         if self.source_config.platform_instance:
             browse_path_str += f"/{self.source_config.platform_instance}"
         browse_path = BrowsePathsClass([browse_path_str])
         dataset_snapshot.aspects.append(browse_path)
+
+        browse_paths_v2_path = []
+        if self.source_config.platform_instance:
+            platform_instance_urn = make_dataplatform_instance_urn(
+                self.platform, self.source_config.platform_instance
+            )
+            browse_paths_v2_path.append(
+                BrowsePathEntryClass(
+                    id=platform_instance_urn, urn=platform_instance_urn
+                )
+            )
+        dataset_snapshot.aspects.append(BrowsePathsV2Class(path=browse_paths_v2_path))
 
         custom_props = self.build_custom_properties(
             topic, topic_detail, extra_topic_config
@@ -362,6 +375,7 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
 
         # 4. Set dataset's description, tags, ownership, etc, if topic schema type is avro
         description: Optional[str] = None
+        meta_domain_aspect = None
         if (
             schema_metadata is not None
             and isinstance(schema_metadata.platformSchema, KafkaSchemaClass)
@@ -408,6 +422,8 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
                         for tag_association in meta_tags_aspect.tags
                     ]
 
+                meta_domain_aspect = meta_aspects.get(Constants.ADD_DOMAIN_OPERATION)
+
             if all_tags:
                 dataset_snapshot.aspects.append(
                     mce_builder.make_global_tag_aspect_with_tag_list(all_tags)
@@ -453,6 +469,12 @@ class KafkaSource(StatefulIngestionSourceBase, TestableSource):
                 entity_urn=dataset_urn,
                 domain_urn=domain_urn,
             )
+        # If domain is defined in the avro schema and captured by meta mapping
+        if meta_domain_aspect:
+            yield MetadataChangeProposalWrapper(
+                entityUrn=dataset_urn,
+                aspect=meta_domain_aspect,
+            ).as_workunit()
 
     def build_custom_properties(
         self,

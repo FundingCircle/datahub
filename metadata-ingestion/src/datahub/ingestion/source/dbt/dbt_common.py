@@ -53,14 +53,12 @@ from datahub.ingestion.source.dbt.dbt_tests import (
     make_assertion_result_from_test,
 )
 from datahub.ingestion.source.sql.sql_types import (
-    ATHENA_SQL_TYPES_MAP,
     BIGQUERY_TYPES_MAP,
     POSTGRES_TYPES_MAP,
     SNOWFLAKE_TYPES_MAP,
     SPARK_SQL_TYPES_MAP,
     TRINO_SQL_TYPES_MAP,
     VERTICA_SQL_TYPES_MAP,
-    resolve_athena_modified_type,
     resolve_postgres_modified_type,
     resolve_trino_modified_type,
     resolve_vertica_modified_type,
@@ -101,6 +99,8 @@ from datahub.metadata.com.linkedin.pegasus2avro.schema import (
     TimeTypeClass,
 )
 from datahub.metadata.schema_classes import (
+    BrowsePathEntryClass,
+    BrowsePathsV2Class,
     DataPlatformInstanceClass,
     DatasetPropertiesClass,
     GlobalTagsClass,
@@ -125,6 +125,7 @@ from datahub.sql_parsing.sqlglot_lineage import (
     sqlglot_lineage,
 )
 from datahub.sql_parsing.sqlglot_utils import detach_ctes, try_format_query
+from datahub.utilities.hive_schema_to_avro import get_schema_fields_for_hive_column
 from datahub.utilities.mapping import Constants, OperationProcessor
 from datahub.utilities.time import datetime_to_ts_millis
 from datahub.utilities.topological_sort import topological_sort
@@ -580,7 +581,6 @@ class DBTNode:
         elif self.node_type == "source" and not skip_sources_in_lineage:
             pass  # leave it as dbt
         else:
-            # upstream urns point to the target platform
             platform_value = target_platform
             platform_instance_value = target_platform_instance
 
@@ -780,7 +780,6 @@ _field_type_mapping = {
     **BIGQUERY_TYPES_MAP,
     **SPARK_SQL_TYPES_MAP,
     **TRINO_SQL_TYPES_MAP,
-    **ATHENA_SQL_TYPES_MAP,
     **VERTICA_SQL_TYPES_MAP,
 }
 
@@ -794,11 +793,9 @@ def get_column_type(
     TypeClass: Any = _field_type_mapping.get(column_type)
 
     if TypeClass is None:
-        # resolve a modified type
+        # resolve modified type
         if dbt_adapter == "trino":
             TypeClass = resolve_trino_modified_type(column_type)
-        elif dbt_adapter == "athena":
-            TypeClass = resolve_athena_modified_type(column_type)
         elif dbt_adapter == "postgres" or dbt_adapter == "redshift":
             # Redshift uses a variant of Postgres, so we can use the same logic.
             TypeClass = resolve_postgres_modified_type(column_type)
@@ -1249,6 +1246,29 @@ class DBTSourceBase(StatefulIngestionSourceBase):
                 aspect=self._make_data_platform_instance_aspect(),
             ).as_workunit()
 
+            # Domain aspects
+            meta_domain_aspect = meta_aspects.get(Constants.ADD_DOMAIN_OPERATION)
+            if meta_domain_aspect:
+                yield MetadataChangeProposalWrapper(
+                    entityUrn=node_datahub_urn,
+                    aspect=meta_domain_aspect,
+                ).as_workunit()
+
+            # add browsePathsV2 aspect
+            browse_paths_v2_path = []
+            if mce_platform_instance:
+                platform_instance_urn = mce_builder.make_dataplatform_instance_urn(
+                    mce_platform, mce_platform_instance
+                )
+                browse_paths_v2_path.append(
+                    BrowsePathEntryClass(
+                        id=platform_instance_urn, urn=platform_instance_urn
+                    )
+                )
+            if node.schema:
+                browse_paths_v2_path.append(BrowsePathEntryClass(id=node.schema))
+            aspects.append(BrowsePathsV2Class(path=browse_paths_v2_path))
+
             if len(aspects) == 0:
                 continue
             dataset_snapshot = DatasetSnapshot(urn=node_datahub_urn, aspects=aspects)
@@ -1539,13 +1559,6 @@ class DBTSourceBase(StatefulIngestionSourceBase):
     def get_schema_metadata(
         self, report: DBTSourceReport, node: DBTNode, platform: str
     ) -> SchemaMetadata:
-        action_processor = OperationProcessor(
-            self.config.column_meta_mapping,
-            self.config.tag_prefix,
-            "SOURCE_CONTROL",
-            self.config.strip_user_ids_from_email,
-        )
-
         canonical_schema: List[SchemaField] = []
         for column in node.columns:
             description = None
@@ -1561,50 +1574,33 @@ class DBTSourceBase(StatefulIngestionSourceBase):
             elif column.description:
                 description = column.description
 
-            meta_aspects: Dict[str, Any] = {}
-            if self.config.enable_meta_mapping and column.meta:
-                meta_aspects = action_processor.process(column.meta)
-
-            if meta_aspects.get(Constants.ADD_OWNER_OPERATION):
-                logger.warning("The add_owner operation is not supported for columns.")
-
-            meta_tags: Optional[GlobalTagsClass] = meta_aspects.get(
-                Constants.ADD_TAG_OPERATION
-            )
-            globalTags = None
-            if meta_tags or column.tags:
-                # Merge tags from meta mapping and column tags.
-                globalTags = GlobalTagsClass(
-                    tags=(meta_tags.tags if meta_tags else [])
-                    + [
-                        TagAssociationClass(mce_builder.make_tag_urn(tag))
-                        for tag in column.tags
-                    ]
-                )
-
-            glossaryTerms = None
-            if meta_aspects.get(Constants.ADD_TERM_OPERATION):
-                glossaryTerms = meta_aspects.get(Constants.ADD_TERM_OPERATION)
-
             field_name = column.name
             if self.config.convert_column_urns_to_lowercase:
                 field_name = field_name.lower()
 
-            field = SchemaField(
-                fieldPath=field_name,
-                nativeDataType=column.data_type,
-                type=column.datahub_data_type
-                or get_column_type(
-                    report, node.dbt_name, column.data_type, node.dbt_adapter
-                ),
-                description=description,
-                nullable=False,  # TODO: actually autodetect this
-                recursive=False,
-                globalTags=globalTags,
-                glossaryTerms=glossaryTerms,
-            )
+            meta_mapping_args = {}
+            if self.config.enable_meta_mapping:
+                action_processor = OperationProcessor(
+                    self.config.column_meta_mapping,
+                    self.config.tag_prefix,
+                    "SOURCE_CONTROL",
+                    self.config.strip_user_ids_from_email,
+                )
+                meta_mapping_args = {
+                    "meta_mapping_processor": action_processor,
+                    "meta_props": column.meta,
+                }
 
-            canonical_schema.append(field)
+            schema_fields = get_schema_fields_for_hive_column(
+                hive_column_name=field_name,
+                hive_column_type=column.data_type,
+                description=description,
+                default_nullable=True,
+                custom_tags=column.tags,
+                **meta_mapping_args,  # type: ignore
+            )
+            assert schema_fields
+            canonical_schema.extend(schema_fields)
 
         last_modified = None
         if node.max_loaded_at is not None:

@@ -52,10 +52,13 @@ class _TableName(_FrozenModel):
     def qualified(
         self,
         dialect: sqlglot.Dialect,
+        platform: str,
         default_db: Optional[str] = None,
         default_schema: Optional[str] = None,
     ) -> "_TableName":
         database = self.database or default_db
+        if platform == "athena":
+            database = "awsdatacatalog"
         db_schema = self.db_schema or default_schema
 
         return _TableName(

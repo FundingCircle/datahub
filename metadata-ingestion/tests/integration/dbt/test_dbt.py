@@ -12,9 +12,7 @@ from datahub.ingestion.run.pipeline_config import PipelineConfig, SourceConfig
 from datahub.ingestion.source.dbt.dbt_common import DBTEntitiesEnabled, EmitDirective
 from datahub.ingestion.source.dbt.dbt_core import DBTCoreConfig, DBTCoreSource
 from datahub.ingestion.source.sql.sql_types import (
-    ATHENA_SQL_TYPES_MAP,
     TRINO_SQL_TYPES_MAP,
-    resolve_athena_modified_type,
     resolve_trino_modified_type,
 )
 from tests.test_helpers import mce_helpers, test_connection_helpers
@@ -207,6 +205,31 @@ class DbtTestConfig:
             },
         ),
         DbtTestConfig(
+            "dbt-test-with-nested-meta",
+            "dbt_test_with_nested_meta_mces.json",
+            "dbt_test_with_nested_meta_mces_golden.json",
+            manifest_file="dbt_manifest_with_nested_meta.json",
+            source_config_modifiers={
+                "enable_meta_mapping": True,
+                "column_meta_mapping": {
+                    "add.term": {
+                        "match": ".*",
+                        "operation": "add_terms",
+                        "config": {"term": "{{ $match }}"},
+                    },
+                    "add.tag": {
+                        "match": ".*",
+                        "operation": "add_tag",
+                        "config": {"tag": "{{ $match }}"},
+                    },
+                },
+                "entities_enabled": {
+                    "test_definitions": "NO",
+                    "test_results": "NO",
+                },
+            },
+        ),
+        DbtTestConfig(
             "dbt-model-performance",
             "dbt_test_model_performance.json",
             "dbt_test_test_model_performance_golden.json",
@@ -374,36 +397,6 @@ def test_resolve_trino_modified_type(data_type, expected_data_type):
     assert (
         resolve_trino_modified_type(data_type)
         == TRINO_SQL_TYPES_MAP[expected_data_type]
-    )
-
-
-@pytest.mark.parametrize(
-    "data_type, expected_data_type",
-    [
-        ("boolean", "boolean"),
-        ("tinyint", "tinyint"),
-        ("smallint", "smallint"),
-        ("int", "int"),
-        ("integer", "integer"),
-        ("bigint", "bigint"),
-        ("float", "float"),
-        ("double", "double"),
-        ("decimal(10,0)", "decimal"),
-        ("varchar(20)", "varchar"),
-        ("char", "char"),
-        ("binary", "binary"),
-        ("date", "date"),
-        ("timestamp", "timestamp"),
-        ("timestamp(3)", "timestamp"),
-        ("struct<x timestamp(3), y timestamp>", "struct"),
-        ("array<struct<x bigint, y double>>", "array"),
-        ("map<varchar, varchar>", "map"),
-    ],
-)
-def test_resolve_athena_modified_type(data_type, expected_data_type):
-    assert (
-        resolve_athena_modified_type(data_type)
-        == ATHENA_SQL_TYPES_MAP[expected_data_type]
     )
 
 

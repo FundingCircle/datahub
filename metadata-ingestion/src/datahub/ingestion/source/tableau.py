@@ -89,6 +89,7 @@ from datahub.ingestion.source.tableau_common import (
     dashboard_graphql_query,
     database_tables_graphql_query,
     embedded_datasource_graphql_query,
+    get_dataset_platform_from_urn,
     get_overridden_info,
     get_unique_custom_sql,
     make_fine_grained_lineage_class,
@@ -127,7 +128,9 @@ from datahub.metadata.com.linkedin.pegasus2avro.schema import (
     SchemaMetadata,
 )
 from datahub.metadata.schema_classes import (
+    BrowsePathEntryClass,
     BrowsePathsClass,
+    BrowsePathsV2Class,
     ChangeTypeClass,
     ChartInfoClass,
     ChartUsageStatisticsClass,
@@ -141,6 +144,8 @@ from datahub.metadata.schema_classes import (
     OwnershipTypeClass,
     SubTypesClass,
     ViewPropertiesClass,
+    SchemaMetadataClass,
+    EditableSchemaMetadataClass
 )
 from datahub.sql_parsing.sql_parsing_result_utils import (
     transform_parsing_result_to_in_tables_schemas,
@@ -378,6 +383,16 @@ class TableauConfig(
         description="[Experimental] Whether to extract lineage from unsupported custom sql queries using SQL parsing",
     )
 
+    ignore_upstream_lineage_platforms: Optional[str] = Field(
+        default="",
+        description="Comma separated list of platforms to not ingest upstream lineage for",
+    )
+
+    upstream_postgres_database_whitelist: Optional[str] = Field(
+        default="",
+        description="Comma separated list of postgres databases to include in upstream lineage",
+    )
+
     force_extraction_of_lineage_from_custom_sql_queries: bool = Field(
         default=False,
         description="[Experimental] Force extraction of lineage from custom sql queries using SQL parsing, ignoring Tableau metadata",
@@ -551,6 +566,28 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
         # This list keeps track of datasource being actively used by workbooks so that we only retrieve those
         # when emitting custom SQL data sources.
         self.custom_sql_ids_being_used: List[str] = []
+
+        if self.config.ignore_upstream_lineage_platforms:
+            self.ignore_upstream_lineage_platforms = [
+                x.strip()
+                for x in (self.config.ignore_upstream_lineage_platforms.split(","))
+            ]
+        else:
+            # return empty list if the config is not set
+            self.ignore_upstream_lineage_platforms = []
+
+        # if ignore upstream lineage platforms doesn't contain "postgres", then consult the upstream_postgres_database_whitelist
+        if (
+            "postgres" not in self.ignore_upstream_lineage_platforms
+            and self.config.upstream_postgres_database_whitelist
+        ):
+            self.upstream_postgres_database_whitelist = [
+                x.strip()
+                for x in (self.config.upstream_postgres_database_whitelist.split(","))
+            ]
+        else:
+            # return empty list if the config is not set
+            self.upstream_postgres_database_whitelist = []
 
         self._authenticate()
 
@@ -1084,6 +1121,15 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
         # Same table urn can be used when setting fine grained lineage,
         table_id_to_urn: Dict[str, str] = {}
         for table in tables:
+            if (
+                table.get(c.CONNECTION_TYPE, "")
+                in self.ignore_upstream_lineage_platforms
+            ):
+                logger.debug(
+                    f"Skipping upstream table {table[c.ID]}, ignoring upstream platform {table.get(c.CONNECTION_TYPE, '')}"
+                )
+                continue
+
             # skip upstream tables when there is no column info when retrieving datasource
             # Lineage and Schema details for these will be taken care in self.emit_custom_sql_datasources()
             num_tbl_cols: Optional[int] = table.get(c.COLUMNS_CONNECTION) and table[
@@ -1100,6 +1146,20 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
                     f"Skipping upstream table {table[c.ID]} from lineage since its name is none: {table}"
                 )
                 continue
+
+            # skip upstream tables if the source is postgres and the database is not whitelisted
+            if table.get(c.CONNECTION_TYPE) == "postgres":
+                upstream_db = table.get(c.DATABASE, {})
+                if upstream_db:
+                    upstream_db = upstream_db.get(c.NAME, "")
+                if (
+                    upstream_db is None # If database name is not present, skip the table
+                    or upstream_db not in self.upstream_postgres_database_whitelist
+                ):
+                    logger.debug(
+                        f"Skipping upstream table {table[c.ID]}, database {upstream_db} not whitelisted"
+                    )
+                    continue
 
             try:
                 ref = TableauUpstreamReference.create(
@@ -1450,11 +1510,44 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
             # Browse path
             if project and datasource_name:
                 browse_paths = BrowsePathsClass(
-                    paths=[f"{self.dataset_browse_prefix}/{project}/{datasource_name}"]
+                    paths=[
+                        f"/{self.config.env.lower()}/{self.platform}"
+                        + (
+                            f"/{self.config.platform_instance}"
+                            if self.config.platform_instance
+                            else ""
+                        )
+                        + f"/{project}/{datasource[c.NAME]}"
+                    ]
                 )
                 dataset_snapshot.aspects.append(browse_paths)
             else:
                 logger.debug(f"Browse path not set for Custom SQL table {csql_id}")
+
+            # Browse path V2
+            browse_paths_V2_path = []
+            if self.config.platform_instance:
+                platform_instance_urn = builder.make_dataplatform_instance_urn(
+                    self.platform, self.config.platform_instance
+                )
+                browse_paths_V2_path.append(
+                    BrowsePathEntryClass(
+                        id=platform_instance_urn, urn=platform_instance_urn
+                    )
+                )
+            if project:
+                browse_paths_V2_path.extend(
+                    [
+                        BrowsePathEntryClass(id=path)
+                        for path in project.strip("/").split("/")
+                    ]
+                )
+            if datasource.get(c.WORKBOOK):
+                browse_paths_V2_path.append(
+                    BrowsePathEntryClass(id=datasource.get(c.WORKBOOK).get(c.NAME))
+                )
+            browse_paths_V2 = BrowsePathsV2Class(path=browse_paths_V2_path)
+            dataset_snapshot.aspects.append(browse_paths_V2)
 
             dataset_properties = DatasetPropertiesClass(
                 name=csql.get(c.NAME),
@@ -1706,7 +1799,7 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
             )
             return None
 
-        query = datasource.get(c.QUERY)
+        query = clean_query(datasource.get(c.QUERY, ""))
         if query is None:
             logger.debug(
                 f"raw sql query is not available for datasource {datasource_urn}"
@@ -1895,9 +1988,38 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
 
         if browse_path:
             browse_paths = BrowsePathsClass(
-                paths=[f"{self.dataset_browse_prefix}/{browse_path}"]
+                paths=[
+                    f"/{self.config.env.lower()}/{self.platform}"
+                    + (
+                        f"/{self.config.platform_instance}"
+                        if self.config.platform_instance
+                        else ""
+                    )
+                    + f"/{browse_path}"
+                ]
             )
             dataset_snapshot.aspects.append(browse_paths)
+
+        # Browse path V2
+        browse_paths_V2_path = []
+        if self.config.platform_instance:
+            platform_instance_urn = builder.make_dataplatform_instance_urn(
+                self.platform, self.config.platform_instance
+            )
+            browse_paths_V2_path.append(
+                BrowsePathEntryClass(
+                    id=platform_instance_urn, urn=platform_instance_urn
+                )
+            )
+        if browse_path:
+            browse_paths_V2_path.extend(
+                [
+                    BrowsePathEntryClass(id=path)
+                    for path in browse_path.strip("/").split("/")
+                ]
+            )
+        browse_paths_V2 = BrowsePathsV2Class(path=browse_paths_V2_path)
+        dataset_snapshot.aspects.append(browse_paths_V2)
 
         # Ownership
         owner = (
@@ -2086,11 +2208,45 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
             # Browse path
             browse_paths = BrowsePathsClass(
                 paths=[
-                    f"{self.dataset_browse_prefix}/{path}"
+                    f"/{self.config.env.lower()}/{self.platform}"
+                    + (
+                        f"/{self.config.platform_instance}"
+                        if self.config.platform_instance
+                        else ""
+                    )
+                    + f"/{path}"
                     for path in sorted(database_table.paths, key=lambda p: (len(p), p))
                 ]
             )
             dataset_snapshot.aspects.append(browse_paths)
+
+            # Browse path V2
+            platform = get_dataset_platform_from_urn(database_table.urn)
+            platform_instance = (
+                self.config.platform_instance_map.get(
+                    platform, self.config.platform_instance
+                )
+                if self.config.platform_instance_map and platform
+                else None
+            )
+            browse_paths_V2_path = []
+            if platform_instance and platform:
+                platform_instance_urn = builder.make_dataplatform_instance_urn(
+                    platform, platform_instance
+                )
+                browse_paths_V2_path.append(
+                    BrowsePathEntryClass(
+                        id=platform_instance_urn, urn=platform_instance_urn
+                    )
+                )
+            browse_paths_V2_path.extend(
+                [
+                    BrowsePathEntryClass(id=path)
+                    for path in list(database_table.paths)[0].strip("/").split("/")
+                ]
+            )
+            browse_paths_V2 = BrowsePathsV2Class(path=browse_paths_V2_path)
+            dataset_snapshot.aspects.append(browse_paths_V2)
         else:
             logger.debug(f"Browse path not set for table {database_table.urn}")
 
@@ -2098,7 +2254,13 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
             tableau_columns, database_table.parsed_columns
         )
         if schema_metadata is not None:
-            dataset_snapshot.aspects.append(schema_metadata)
+            # Check if table already has schema metadata
+            current_schema_aspect = self.ctx.graph.get_aspect(entity_urn=database_table.urn, aspect_type=SchemaMetadataClass)
+            current_editable_schema_aspect = self.ctx.graph.get_aspect(entity_urn=database_table.urn, aspect_type=EditableSchemaMetadataClass)
+            if current_schema_aspect or current_editable_schema_aspect:
+                logger.debug(f"Table {database_table.urn} already has schema metadata, skipping")
+            else:
+                dataset_snapshot.aspects.append(schema_metadata)
 
         yield self.get_metadata_change_event(dataset_snapshot)
 
@@ -2621,8 +2783,14 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
             if project_luid in self.tableau_project_registry:
                 browse_paths = BrowsePathsClass(
                     paths=[
-                        f"{self.no_env_browse_prefix}/{self._project_luid_to_browse_path_name(project_luid)}"
-                        f"/{workbook[c.NAME].replace('/', REPLACE_SLASH_CHAR)}"
+                        f"/{self.platform}"
+                        + (
+                            f"/{self.config.platform_instance}"
+                            if self.config.platform_instance
+                            else ""
+                        )
+                        + f"/{self._project_luid_to_browse_path_name(project_luid)}"
+                        + f"/{workbook[c.NAME].replace('/', REPLACE_SLASH_CHAR)}"
                     ]
                 )
 
@@ -2630,8 +2798,14 @@ class TableauSource(StatefulIngestionSourceBase, TestableSource):
                 # browse path
                 browse_paths = BrowsePathsClass(
                     paths=[
-                        f"{self.no_env_browse_prefix}/{workbook[c.PROJECT_NAME].replace('/', REPLACE_SLASH_CHAR)}"
-                        f"/{workbook[c.NAME].replace('/', REPLACE_SLASH_CHAR)}"
+                        f"/{self.platform}"
+                        + (
+                            f"/{self.config.platform_instance}"
+                            if self.config.platform_instance
+                            else ""
+                        )
+                        + f"/{workbook[c.PROJECT_NAME].replace('/', REPLACE_SLASH_CHAR)}"
+                        + f"/{workbook[c.NAME].replace('/', REPLACE_SLASH_CHAR)}"
                     ]
                 )
 

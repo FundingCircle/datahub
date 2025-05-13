@@ -54,7 +54,7 @@
 {
     "proposedSnapshot": {
         "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {
-            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)",
+            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.flights-database.avro,PROD)",
             "aspects": [
                 {
                     "com.linkedin.pegasus2avro.common.Status": {
@@ -232,6 +232,7 @@
                                 "type": "DATAOWNER"
                             }
                         ],
+                        "ownerTypes": {},
                         "lastModified": {
                             "time": 0,
                             "actor": "urn:li:corpuser:unknown"
@@ -256,7 +257,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.flights-database.avro,PROD)",
     "changeType": "UPSERT",
     "aspectName": "subTypes",
     "aspect": {
@@ -269,7 +270,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.flights-database.avro,PROD)",
     "changeType": "UPSERT",
     "aspectName": "container",
     "aspect": {
@@ -333,7 +334,7 @@
 {
     "proposedSnapshot": {
         "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {
-            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_jsons_markers,PROD)",
+            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_jsons_markers,PROD)",
             "aspects": [
                 {
                     "com.linkedin.pegasus2avro.common.Status": {
@@ -468,6 +469,7 @@
                                 "type": "DATAOWNER"
                             }
                         ],
+                        "ownerTypes": {},
                         "lastModified": {
                             "time": 0,
                             "actor": "urn:li:corpuser:unknown"
@@ -492,7 +494,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_jsons_markers,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_jsons_markers,PROD)",
     "changeType": "UPSERT",
     "aspectName": "subTypes",
     "aspect": {
@@ -505,7 +507,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_jsons_markers,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_jsons_markers,PROD)",
     "changeType": "UPSERT",
     "aspectName": "container",
     "aspect": {
@@ -517,7 +519,7 @@
 {
     "proposedSnapshot": {
         "com.linkedin.pegasus2avro.metadata.snapshot.DatasetSnapshot": {
-            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_parquet,PROD)",
+            "urn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_parquet,PROD)",
             "aspects": [
                 {
                     "com.linkedin.pegasus2avro.common.Status": {
@@ -653,6 +655,7 @@
                                 "type": "DATAOWNER"
                             }
                         ],
+                        "ownerTypes": {},
                         "lastModified": {
                             "time": 0,
                             "actor": "urn:li:corpuser:unknown"
@@ -677,7 +680,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_parquet,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_parquet,PROD)",
     "changeType": "UPSERT",
     "aspectName": "subTypes",
     "aspect": {
@@ -690,7 +693,7 @@
 },
 {
     "entityType": "dataset",
-    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_parquet,PROD)",
+    "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_parquet,PROD)",
     "changeType": "UPSERT",
     "aspectName": "container",
     "aspect": {
@@ -832,7 +835,7 @@
                 {
                     "com.linkedin.pegasus2avro.datajob.DataJobInputOutput": {
                         "inputDatasets": [
-                            "urn:li:dataset:(urn:li:dataPlatform:glue,flights-database.avro,PROD)"
+                            "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.flights-database.avro,PROD)"
                         ],
                         "outputDatasets": [],
                         "inputDatajobs": []
@@ -1021,7 +1024,7 @@
                 {
                     "com.linkedin.pegasus2avro.datajob.DataJobInputOutput": {
                         "inputDatasets": [
-                            "urn:li:dataset:(urn:li:dataPlatform:glue,test-database.test_parquet,PROD)"
+                            "urn:li:dataset:(urn:li:dataPlatform:glue,awsdatacatalog.test-database.test_parquet,PROD)"
                         ],
                         "outputDatasets": [],
                         "inputDatajobs": []

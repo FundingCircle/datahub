@@ -6,10 +6,14 @@ import time
 from functools import reduce
 from typing import Any, Dict, List, Mapping, Match, Optional, Union, cast
 
+from jinja2 import Template
+from jinja2.sandbox import SandboxedEnvironment
+
 from datahub.emitter import mce_builder
 from datahub.emitter.mce_builder import OwnerType
 from datahub.metadata.schema_classes import (
     AuditStampClass,
+    DomainsClass,
     InstitutionalMemoryClass,
     InstitutionalMemoryMetadataClass,
     OwnerClass,
@@ -55,8 +59,11 @@ def _insert_match_value(original_value: str, match_value: str) -> str:
     """
     If the original value is something like "foo{{ $match }}bar", then we insert the match value
     e.g. "foo<match_value>bar". Otherwise, it will leave the original value unchanged.
+    Uses a Jinja2 template render to perform simple string operations.
     """
-    return _match_regexp.sub(match_value, original_value)
+    return Template(_match_regexp.sub(match_value, original_value)).render(
+        jinja_env=SandboxedEnvironment()
+    )
 
 
 class Constants:
@@ -65,12 +72,14 @@ class Constants:
     ADD_TERM_OPERATION = "add_term"
     ADD_TERMS_OPERATION = "add_terms"
     ADD_OWNER_OPERATION = "add_owner"
+    ADD_DOMAIN_OPERATION = "add_domain"
     OPERATION = "operation"
     OPERATION_CONFIG = "config"
     TAG = "tag"
     TERM = "term"
     DOC_LINK = "link"
     DOC_DESCRIPTION = "description"
+    DOMAIN = "domain"
     OWNER_TYPE = "owner_type"
     OWNER_CATEGORY = "owner_category"
     MATCH = "match"
@@ -120,13 +129,11 @@ class OperationProcessor:
         tag_prefix: str = "",
         owner_source_type: Optional[str] = None,
         strip_owner_email_id: bool = False,
-        match_nested_props: bool = False,
     ):
         self.operation_defs = operation_defs
         self.tag_prefix = tag_prefix
         self.strip_owner_email_id = strip_owner_email_id
         self.owner_source_type = owner_source_type
-        self.match_nested_props = match_nested_props
 
     def process(self, raw_props: Mapping[str, Any]) -> Dict[str, Any]:
         # Defining the following local variables -
@@ -150,7 +157,7 @@ class OperationProcessor:
                 if not operation_type or not operation_config:
                     continue
                 raw_props_value = raw_props.get(operation_key)
-                if not raw_props_value and self.match_nested_props:
+                if not raw_props_value:
                     try:
                         raw_props_value = reduce(
                             operator.getitem, operation_key.split("."), raw_props
@@ -287,7 +294,11 @@ class OperationProcessor:
                 logger.error(
                     f"Error while constructing aspect for documentation link and description : {e}"
                 )
-
+        if Constants.ADD_DOMAIN_OPERATION in operation_map:
+            domain_aspect = DomainsClass(
+                domains=list(operation_map[Constants.ADD_DOMAIN_OPERATION])
+            )
+            aspect_map[Constants.ADD_DOMAIN_OPERATION] = domain_aspect
         return aspect_map
 
     def get_operation_value(
@@ -370,6 +381,10 @@ class OperationProcessor:
                 for term in captured_terms.split(separator)
                 if term.strip()
             ]
+        elif operation_type == Constants.ADD_DOMAIN_OPERATION:
+            domain = operation_config[Constants.DOMAIN]
+            domain = _insert_match_value(domain, _get_best_match(match, "domain"))
+            return mce_builder.make_domain_urn(domain)
         return None
 
     def sanitize_owner_ids(self, owner_id: str) -> str:
@@ -381,7 +396,10 @@ class OperationProcessor:
         # function to check if a match clause is satisfied to a value.
         if not any(
             isinstance(raw_props_value, t) for t in Constants.OPERAND_DATATYPE_SUPPORTED
-        ) or not isinstance(raw_props_value, type(match_clause)):
+        ) or (
+            not isinstance(raw_props_value, bool)
+            and not isinstance(raw_props_value, type(match_clause))
+        ):
             return None
         elif isinstance(raw_props_value, str):
             return re.match(match_clause, raw_props_value)
