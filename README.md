@@ -192,6 +192,16 @@ Here are the companies that have officially adopted DataHub. Please feel free to
 
 See the full list [here](docs/links.md).
 
+## Update With Upstream
+
+If this repo needs to be updated with the original repo it came from, you can do so by adding the upstream and pulling it.
+You will need to do this on a new branch and open a pull request to merge it into main.
+
+1. `git remote add upstream https://github.com/datahub-project/datahub`
+2. `git fetch upstream`
+3. `git merge upstream/master`
+4. `git push`
+
 ## License
 
 [Apache License 2.0](./LICENSE).
